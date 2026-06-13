@@ -1,0 +1,25 @@
+import torch
+
+def predict(model, dataloader, RPI= False, magnitude = 1.0):
+  # Attach hook to apply RPI intervention
+
+  if RPI:
+    def RPI_hook(module, input, output):
+      out = output.view(output.shape[0], output.shape[1], -1)
+
+      perm = torch.randperm(out.shape[-1])
+      return out[:,:,perm]
+
+    model.vit.embeddings.patch_embeddings.projection.register_forward_hook(RPI_hook)
+
+  # Scale positional encodings (for the PE magnitude scaling experiment)
+  
+  model._modules['vit'].embeddings.position_embeddings = torch.nn.Parameter(model._modules['vit'].embeddings.position_embeddings * magnitude)
+  
+  acc_list = [] # List of accuracies
+  for images, labels in dataloader:
+    inputs = processor(images=images, return_tensors="pt")
+    output = model(**inputs)
+    logits = outputs.logits
+    predicted_class_idx = logits.argmax(-1)[0]
+    accuracy = (predicted_class_idx == torch.tensor(labels)).sum()
