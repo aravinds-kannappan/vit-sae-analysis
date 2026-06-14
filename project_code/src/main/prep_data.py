@@ -5,12 +5,13 @@ from PIL import Image
 import os
 
 class Data(IterableDataset):
-  def __init__(self, hf_dataset):
+  def __init__(self, hf_dataset, processor):
     self.dataset = hf_dataset
+    self.processor = processor
 
   def __iter__(self):
     for item in self.dataset:
-        image = item['image'].convert('RGB')
+        image = self.processor(images = item['image'].convert('RGB'), return_tensors = "pt")
         label = item['label']
         yield image,label
 

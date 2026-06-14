@@ -42,8 +42,8 @@ def spatial_similarity_distance_correlation(S,grid_size, metric):
     corr, _ = spearmanr(-dist_vals, sim_vals)
     return corr
 
-def evaluate_ssdc(model, dataset, RPI = False, magnitude = 1.0):
-    dataloader = prep_data(dataset)  
+def evaluate_ssdc(model, processor, dataset, RPI = False, magnitude = 1.0):
+    dataloader = prep_data(dataset, processor)  
 
     token_inputs = {}
 

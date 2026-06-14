@@ -18,8 +18,10 @@ def predict(model, dataloader, RPI= False, magnitude = 1.0):
   
   acc_list = [] # List of accuracies
   for images, labels in dataloader:
-    inputs = processor(images=images, return_tensors="pt")
-    output = model(**inputs)
+    outputs = model(**images)
     logits = outputs.logits
     predicted_class_idx = logits.argmax(-1)[0]
     accuracy = (predicted_class_idx == torch.tensor(labels)).sum()
+    acc_list.append(accuracy)
+  
+  return sum(acc_list) / len(acc_list)
