@@ -12,8 +12,8 @@ class Data(IterableDataset):
   def __iter__(self):
     for item in self.dataset:
         image = self.processor(images = item['image'].convert('RGB'), return_tensors = "pt")
+        image['pixel_values'] = image['pixel_values'].squeeze(0)
         label = item['label']
-        image['pixel_values'] = image['pixel_values'].squeeze(1)
         yield image,label
 
 
