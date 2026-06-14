@@ -1,18 +1,18 @@
 import torch
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, DataLoader
 from torchvision.transforms import v2 as T
 from PIL import Image
 import os
 
-class Data(Dataset):
+class Data(IterableDataset):
   def __init__(self, hf_dataset):
     self.dataset = hf_dataset
 
   def __iter__(self):
     for item in self.dataset:
-    image = item['image'].convert('RGB')
-    label = item['label']
-    yield image,label
+        image = item['image'].convert('RGB')
+        label = item['label']
+        yield image,label
 
 
 def prep_data(dataset):
