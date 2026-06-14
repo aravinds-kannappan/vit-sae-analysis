@@ -13,7 +13,7 @@ class Data(IterableDataset):
     for item in self.dataset:
         image = self.processor(images = item['image'].convert('RGB'), return_tensors = "pt")
         label = item['label']
-        yield image,label
+        yield image.squeeze(1),label
 
 
 def prep_data(dataset, processor):
