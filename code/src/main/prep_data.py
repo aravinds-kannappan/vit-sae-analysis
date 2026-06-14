@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import IterableDataset
 from torchvision.transforms import v2 as T
 from PIL import Image
 import os
@@ -7,13 +7,12 @@ import os
 class Data(Dataset):
   def __init__(self, hf_dataset):
     self.dataset = hf_dataset
-  def __len__(self):
-    return len(self.dataset)
-  def __getitem__(self, index):
-     item = self.dataset[index]
-     image = Image.open(item['image'].convert('RGB'))
-     label = item['label']
-     return image,label
+
+  def __iter__(self):
+    for item in self.dataset:
+    image = item['image'].convert('RGB')
+    label = item['label']
+    yield image,label
 
 
 def prep_data(dataset):
