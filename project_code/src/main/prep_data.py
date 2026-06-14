@@ -16,8 +16,8 @@ class Data(IterableDataset):
         yield image,label
 
 
-def prep_data(dataset):
+def prep_data(dataset, processor):
     val_batch_size = 1000
-    data = Data(dataset)
+    data = Data(dataset,processor)
     DL = DataLoader(data,val_batch_size,shuffle=False,pin_memory=False, num_workers = 0)
     return DL
