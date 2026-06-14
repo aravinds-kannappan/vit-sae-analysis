@@ -17,11 +17,14 @@ def predict(model, dataloader, RPI= False, magnitude = 1.0):
   model._modules['vit'].embeddings.position_embeddings = torch.nn.Parameter(model._modules['vit'].embeddings.position_embeddings * magnitude)
   
   acc_list = [] # List of accuracies
-  for images, labels in dataloader:
-    outputs = model(**images)
-    logits = outputs.logits
-    predicted_class_idx = logits.argmax(-1)[0]
-    accuracy = (predicted_class_idx == torch.tensor(labels)).sum()
-    acc_list.append(accuracy)
+
+  model.eval()
+  with torch.inference_mode():
+    for images, labels in dataloader:
+      outputs = model(**images)
+      logits = outputs.logits
+      predicted_class_idx = logits.argmax(-1)[0]
+      accuracy = (predicted_class_idx == torch.tensor(labels)).sum()
+      acc_list.append(accuracy)
   
   return sum(acc_list) / len(acc_list)
