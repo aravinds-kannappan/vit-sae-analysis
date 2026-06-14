@@ -19,12 +19,14 @@ def predict(model, dataloader, RPI= False, magnitude = 1.0):
   acc_list = [] # List of accuracies
 
   model.eval()
+  device = model.device
   with torch.inference_mode():
     for images, labels in dataloader:
+      images = images.to(device)
       outputs = model(**images)
       logits = outputs.logits
-      predicted_class_idx = logits.argmax(-1)[0]
-      accuracy = (predicted_class_idx == torch.tensor(labels)).sum()
+      predicted_class_idx = logits.argmax(-1)[0].to(device)
+      accuracy = (predicted_class_idx == torch.tensor(labels).to(device)).sum()
       acc_list.append(accuracy)
   
   return sum(acc_list) / len(acc_list)
