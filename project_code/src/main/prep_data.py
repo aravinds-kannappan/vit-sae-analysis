@@ -20,33 +20,24 @@ class Data(IterableDataset):
 
 
   def __iter__(self):
-    worker_info = torch.utils.data.get_worker_info()
+      worker_info = torch.utils.data.get_worker_info()
 
-    if worker_info is None:
-       
-      for item in self.dataset:
+      if worker_info is None:
+          # Single-process fallback (num_workers=0)
+          current_dataset = self.dataset
+      else:
+          # Multi-process: Streams only the assigned web-shards to this specific worker thread!
+          current_dataset = self.dataset.shard(
+              num_shards=worker_info.num_workers, 
+              index=worker_info.id
+          )
 
-          image = self.processor(images = item['image'].convert('RGB'), return_tensors = "pt")
-
+      # Now you iterate through a clean, pre-split network stream without any modulo logic
+      for item in current_dataset:
+          image = self.processor(images=item['image'].convert('RGB'), return_tensors="pt")
           image['pixel_values'] = image['pixel_values'].squeeze(0)
-
           label = item['label']
-
-          yield image,label
-    else:
-       
-      worker_id = worker_info.id
-      num_workers = worker_info.num_workers
-
-      # Splice the dataset such that no data duplication happens among workers
-      for idx, item in enumerate(self.dataset):
-        if idx % num_workers == worker_id:
-          image = self.processor(images = item['image'].convert('RGB'), return_tensors = "pt")
-
-          image['pixel_values'] = image['pixel_values'].squeeze(0)
-
-          label = item['label']
-
+          
           yield image, label
 
 
