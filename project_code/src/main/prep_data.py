@@ -35,7 +35,7 @@ class Data(IterableDataset):
       # Now you iterate through a clean, pre-split network stream without any modulo logic
       for item in current_dataset:
           image = self.processor(images=item['image'].convert('RGB'), return_tensors="pt")
-          image['pixel_values'] = image['pixel_values'].squeeze(0)
+          image['pixel_values'] = image['pixel_values'].squeeze(0).half()
           label = item['label']
           
           yield image, label

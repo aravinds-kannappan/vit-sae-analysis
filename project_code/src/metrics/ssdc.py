@@ -70,7 +70,7 @@ def evaluate_ssdc(model, processor, dataset, RPI = False, magnitude = 1.0):
 
     layer_names = sorted(
         token_inputs.keys(),
-        key=lambda x: int(x.split(".")[1])
+        key=lambda x: int(x.split(".")[2])
     )
 
     ssdc_scores = []

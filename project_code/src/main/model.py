@@ -19,6 +19,7 @@ def predict(model, dataloader, RPI= False, magnitude = 1.0):
   acc_list = [] # List of accuracies
 
   model.eval()
+  model = model.half()
   device = model.device
   with torch.inference_mode():
     for images, labels in dataloader:
