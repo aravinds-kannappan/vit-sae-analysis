@@ -56,22 +56,38 @@ def evaluate_ssdc(model, processor, dataset, condition, RPI = False, magnitude =
 
     for name, module in model.named_modules():
 
-        if name.startswith("vit.layers") and name.endswith("attention"): #encoder_layers.x.1 is the MultiHeadedAttention component of the encoder blocks
-            handles.append(
-                module.register_forward_hook(
-                    token_hook(name)
+        if condition == "transformers":
+
+            if name.startswith("vit.layers") and name.endswith("attention"): #encoder_layers.x.1 is the MultiHeadedAttention component of the encoder blocks
+                handles.append(
+                    module.register_forward_hook(
+                        token_hook(name)
+                    )
                 )
-            )
+        
+        elif condition == "timm":
+            if name.startswith("blocks") and name.endswith("attn"): #blocks.x.attn is the attention component of the encoder blocks in timm models
+                handles.append(
+                    module.register_forward_hook(
+                        token_hook(name)
+                    )
+                )
 
     predict(model,dataloader, condition , RPI, magnitude)
 
     for handle in handles:
         handle.remove()
 
-    layer_names = sorted(
-        token_inputs.keys(),
-        key=lambda x: int(x.split(".")[2])
-    )
+    if condition == "transformers":
+        layer_names = sorted(
+            token_inputs.keys(),
+            key=lambda x: int(x.split(".")[2])
+        )
+    elif condition == "timm":
+        layer_names = sorted(
+            token_inputs.keys(),
+            key=lambda x: int(x.split(".")[1])
+        )
 
     ssdc_scores = []
     cosine_maps = []

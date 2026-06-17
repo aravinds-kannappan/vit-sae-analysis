@@ -42,7 +42,7 @@ def predict(model, dataloader, condition, RPI= False, magnitude = 1.0):
       
       predicted_class_idx = logits.argmax(-1).to(device)
       accuracy = (predicted_class_idx ==  torch.tensor(labels).to(device)).sum() / len(labels)
-      accuracy = accuracy.detach().cpu()
+      accuracy = accuracy.detach().cpu().item()
       acc_list.append(accuracy)
       print(accuracy)
   
