@@ -38,7 +38,7 @@ class Data(IterableDataset):
             image = self.processor(images=item['image'].convert('RGB'), return_tensors="pt")
             image['pixel_values'] = image['pixel_values'].squeeze(0).half()
           elif self.condition == "timm":
-            image = self.processor(image)
+            image = self.processor(item['image'].convert('RGB')).half()
           label = item['label']
           
           yield image, label

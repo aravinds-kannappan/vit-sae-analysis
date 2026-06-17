@@ -7,10 +7,11 @@ def predict(model, dataloader, condition, RPI= False, magnitude = 1.0):
 
   if RPI:
     def RPI_hook(module, input, output):
-      out = output.view(output.shape[0], output.shape[1], -1)
+      B, C, H, W = output.shape
+      out = output.view(B, C, -1).contiguous()
 
       perm = torch.randperm(out.shape[-1])
-      return out[:,:,perm]
+      return out[:,:,perm].view(B,C,H,W)
 
     if condition == "transformers":
       model.vit.embeddings.patch_embeddings.projection.register_forward_hook(RPI_hook)
@@ -20,6 +21,7 @@ def predict(model, dataloader, condition, RPI= False, magnitude = 1.0):
   # Scale positional encodings (for the PE magnitude scaling experiment)
   if condition == "transformers":
     try:
+      original_pe = model._modules['vit'].embeddings.position_embeddings
       model._modules['vit'].embeddings.position_embeddings = torch.nn.Parameter(model._modules['vit'].embeddings.position_embeddings * magnitude)
     except:
       pass
@@ -29,15 +31,21 @@ def predict(model, dataloader, condition, RPI= False, magnitude = 1.0):
 
   model.eval()
   model = model.half()
-  device = model.device
   with torch.inference_mode():
     for images, labels in dataloader:
       images = images.to(device)
-      outputs = model(**images)
-      logits = outputs.logits
-      predicted_class_idx = logits.argmax(-1)[0].to(device)
-      accuracy = (predicted_class_idx == torch.tensor(labels).to(device)).sum()
+      if condition == "transformers":
+        outputs = model(**images)
+        logits = outputs.logits
+      elif condition == "timm":
+        logits = model(images)
+      
+      predicted_class_idx = logits.argmax(-1).to(device)
+      accuracy = (predicted_class_idx == (torch.tensor(labels).to(device)).sum() / len(labels)).detach().cpu()
       acc_list.append(accuracy)
       print(accuracy)
   
+  #Resetting the model's PEs to their original magnitude
+  model._modules['vit'].embeddings.position_embeddings = original_pe
+
   return sum(acc_list) / len(acc_list)
