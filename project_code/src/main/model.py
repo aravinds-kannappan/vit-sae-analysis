@@ -46,6 +46,9 @@ def predict(model, dataloader, condition, RPI= False, magnitude = 1.0):
       print(accuracy)
   
   #Resetting the model's PEs to their original magnitude
-  model._modules['vit'].embeddings.position_embeddings = original_pe
+  try:
+    model._modules['vit'].embeddings.position_embeddings = original_pe
+  except:
+    pass
 
   return sum(acc_list) / len(acc_list)
