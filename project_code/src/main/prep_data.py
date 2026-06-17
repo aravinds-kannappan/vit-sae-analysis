@@ -48,7 +48,7 @@ class Data(IterableDataset):
 
     self.source = source
 
-    self.corruption_fn = d['corruption_type'] if corruption_type else None
+    self.corruption_fn = d[corruption_type] if corruption_type else None
 
     self.severity = severity
 
