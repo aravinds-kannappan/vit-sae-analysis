@@ -11,8 +11,8 @@ def evaluate_robustness(model, processor, normal_dataset, source, RPI = False, m
     dataloader_normal = prep_data(normal_dataset,processor, source)
 
     # Evaluate accuracy on both procured datasets
-
-    mean_acc = predict(model, dataloader_normal, source, RPI, magnitude)
+    
     shifted_acc = predict(model, dataloader_shifted, source, RPI, magnitude)
+    mean_acc = predict(model, dataloader_normal, source, RPI, magnitude)
 
     return (1 - (shifted_acc/mean_acc))  # Evaluate and return fragility score
