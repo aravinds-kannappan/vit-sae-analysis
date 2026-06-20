@@ -54,7 +54,7 @@ class Data(IterableDataset):
 
   def __iter__(self):
      
-      for item in current_dataset:
+      for item in self.dataset:
           if self.corruption_fn:
              
              item['image'] = apply_corruption(item['image'], self.corruption_fn, self.severity)
