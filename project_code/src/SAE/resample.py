@@ -1,3 +1,5 @@
+import torch
+
 @torch.no_grad()
 def resample_dead_features(sae, optimizer, dead_indices, high_loss_examples, device):
     """
