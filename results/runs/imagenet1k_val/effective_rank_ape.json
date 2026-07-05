@@ -1,0 +1,49 @@
+{
+  "note": "Real run on official ILSVRC/imagenet-1k validation, streamed. ViT-Base/16, 12 blocks. SSDC and robustness on 1000 images, ablation and effective rank on 512 images. 2026-07.",
+  "model": "ape",
+  "metric": "effective rank (under RPI)",
+  "rank_rpi": {
+    "baseline": [
+      99.02,
+      129.36,
+      151.06,
+      154.42,
+      154.01,
+      150.67,
+      145.21,
+      141.51,
+      139.28,
+      139.68,
+      140.71,
+      137.26
+    ],
+    "mlp_zero_all": [
+      99.0,
+      107.83,
+      123.91,
+      126.38,
+      121.16,
+      113.65,
+      103.27,
+      94.21,
+      80.99,
+      70.69,
+      58.55,
+      43.03
+    ],
+    "attn_zero_all": [
+      98.7,
+      122.83,
+      125.89,
+      122.3,
+      119.79,
+      115.88,
+      112.99,
+      111.42,
+      111.71,
+      114.66,
+      123.51,
+      136.1
+    ]
+  }
+}

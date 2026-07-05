@@ -5,6 +5,13 @@ answers, the signatures that distinguish the competing explanations, and the
 directions this can grow into. The predictions below are hypotheses to test with
 the notebook. They are not measured results.
 
+> Results are in [DISCUSSION.md](DISCUSSION.md). The real ImageNet run reversed the
+> two starting claims: the early SSDC peak survived every MLP ablation and only
+> moved under attention ablation (so it is attention built, not MLP built), and the
+> later decay was driven by the middle MLPs rather than by attention. Read this
+> design doc for the questions and signatures, and DISCUSSION.md for what actually
+> happened.
+
 ## Background from the reference run
 
 For the APE model the SSDC under RPI curve rises to an early peak around blocks 2

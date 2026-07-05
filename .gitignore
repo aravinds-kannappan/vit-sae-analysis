@@ -8,11 +8,11 @@ __pycache__/
 .venv/
 venv/
 
-# Experiment run outputs (reference numbers and the figure placeholder are kept)
+# Scratch outputs written directly under results/ by the scripts. The curated runs
+# live in results/runs/, the reference numbers in results/reference/, and the
+# committed figures in results/figures/.
 results/*.json
-results/figures/*.png
 !results/reference/
-!results/figures/.gitkeep
 
 # OS
 .DS_Store

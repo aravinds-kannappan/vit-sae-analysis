@@ -28,6 +28,13 @@ Concrete questions this answers:
 Primary metric is SSDC under RPI, since the early peak and the later decay both
 live in that curve for the APE model. We also record clean SSDC for the baseline.
 
+Result on the real ImageNet run (see docs/DISCUSSION.md). The two working claims
+above were largely reversed. The early peak survived every MLP ablation and only
+moved under attention ablation, so it is attention built, not MLP built. The later
+decay was driven by the middle MLPs, not by attention, though removing late
+attention did soften it. So attention builds the early recovery and the middle
+MLPs drive its decay.
+
 Run:
     python ablation_layerwise.py --number-images 512 --plot
     python ablation_layerwise.py --number-images 512 --plot --rank
@@ -130,17 +137,16 @@ def print_summary(rpi_curves):
             f"{s['decay']:7.3f} {s['final']:7.3f} {s['auc']:7.3f}"
         )
     print(
-        "\nReading guide:\n"
-        "  peak_L   where SSDC-under-RPI peaks. Baseline APE peaks early (blocks 2 to 3).\n"
-        "  decay    peak minus final. A large baseline decay is the 'later layer decay'.\n"
-        "  MLP claim:  mlp_zero_all should crush peak and auc toward zero.\n"
-        "  early MLP:  if mlp_zero_early kills the early peak but mlp_zero_late does not,\n"
-        "              the peak is tied to the early MLP blocks.\n"
-        "  first-met:  if mlp_keep_mid / mlp_keep_late shift peak_L to follow the kept\n"
-        "              window, the peak tracks the first surviving MLPs, not depth per se.\n"
-        "  attn claim: attn_zero_all should shrink decay (SSDC stays high). If\n"
-        "              attn_zero_late alone also shrinks decay, the decay is a late\n"
-        "              layer, attention driven effect."
+        "\nReading guide (full write up in docs/DISCUSSION.md):\n"
+        "  peak_L   where SSDC-under-RPI peaks. APE peaks early, near block 3.\n"
+        "  decay    peak minus final, the size of the later layer decay.\n"
+        "  What the real ImageNet run showed:\n"
+        "   - the early peak survived every MLP ablation and only moved under\n"
+        "     attention ablation, so the peak is attention built, not MLP built.\n"
+        "   - the later decay was driven by the middle MLPs: mlp_zero_mid and\n"
+        "     mlp_zero_all remove most of it, while mlp_zero_late does not.\n"
+        "   - removing late attention only softens the decay, it does not flatten it.\n"
+        "  Compare peak, decay, and final across conditions to see this."
     )
 
 

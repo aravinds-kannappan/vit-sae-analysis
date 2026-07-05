@@ -1,0 +1,15 @@
+{
+  "note": "Real run on official ILSVRC/imagenet-1k validation, streamed. ViT-Base/16, 12 blocks. SSDC and robustness on 1000 images, ablation and effective rank on 512 images. 2026-07.",
+  "corruption": "Gaussian Blur",
+  "severity": 5,
+  "ape": {
+    "baseline_accuracy": 0.805,
+    "shifted_accuracy": 0.495,
+    "fragility": 0.385
+  },
+  "rope": {
+    "baseline_accuracy": 0.844,
+    "shifted_accuracy": 0.607,
+    "fragility": 0.281
+  }
+}

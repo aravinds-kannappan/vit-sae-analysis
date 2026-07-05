@@ -51,7 +51,9 @@ Higher fragility means more sensitive to the shift.
 
 These are the numbers from the original run that this code reproduces. They live
 in `results/reference/` as JSON. Rerunning the notebook regenerates them, with
-small variation from image sampling.
+small variation from image sampling. A full fresh run on the official ImageNet-1k
+validation split, with all figures, is saved under `results/runs/imagenet1k_val/`
+and `results/figures/`, and is discussed in [docs/DISCUSSION.md](docs/DISCUSSION.md).
 
 **SSDC under RPI across the 12 blocks.**
 
@@ -132,6 +134,27 @@ peak_layer, delta, decay, final, auc):
   the peak tracks the first surviving MLPs rather than absolute depth.
 - If `attn_zero_late` alone flattens the decay, the later layer decay is an
   attention driven, late block effect.
+
+### Findings (real ImageNet run)
+
+The run reversed the two starting claims. The full write up with the summary table
+is in [docs/DISCUSSION.md](docs/DISCUSSION.md); the figures are in
+`results/figures/` and the numbers in `results/runs/imagenet1k_val/`.
+
+- **The early peak is attention, not MLPs.** It survives every MLP ablation
+  (`mlp_zero_all` still peaks at 0.79 near block 3) and only moves under attention
+  ablation (`attn_zero_all` peak drops to 0.62 at block 6). So it is neither an
+  early MLP effect nor a first MLPs encountered effect. It is not an MLP effect.
+- **The later decay is the middle MLPs.** `mlp_zero_mid` and `mlp_zero_all` remove
+  most of it (the final block rises from 0.20 to 0.48 and 0.68), `mlp_zero_late`
+  does nothing, and the keep only probe agrees.
+- **Late attention only softens the decay.** `attn_zero_late` lifts the final block
+  to 0.34 but does not flatten the decay. The dominant decay driver is the middle
+  MLPs.
+- **Rank dissociates from SSDC.** `mlp_zero_all` collapses effective rank (154 to
+  43) yet keeps SSDC under RPI highest, so the two probes measure different things.
+
+Net: attention builds the early recovery, and the middle MLPs drive its decay.
 
 ## Extensions
 
