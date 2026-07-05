@@ -116,6 +116,8 @@ def evaluate_ssdc(
     batch_size=256,
     metric="manhattan",
     n_prefix=None,
+    half=True,
+    num_workers=None,
 ):
     """Compute per layer SSDC for a model over a streamed image sample.
 
@@ -140,13 +142,14 @@ def evaluate_ssdc(
         n_prefix = 1 if source == "transformers" else int(getattr(model, "num_prefix_tokens", 1))
 
     dataloader = prep_data(
-        dataset, processor, source, number_images=number_images, batch_size=batch_size
+        dataset, processor, source, number_images=number_images,
+        batch_size=batch_size, half=half, num_workers=num_workers,
     )
 
     store = {"sum": {}, "count": {}}
     handles = _register_block_hooks(model, source, store)
     try:
-        predict(model, dataloader, source, RPI, magnitude)
+        predict(model, dataloader, source, RPI, magnitude, half=half)
     finally:
         for handle in handles:
             handle.remove()

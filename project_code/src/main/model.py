@@ -1,6 +1,6 @@
 import torch
 
-def predict(model, dataloader, source, RPI= False, magnitude = 1.0, half = True):
+def predict(model, dataloader, source, RPI= False, magnitude = 1.0, half = True, verbose = False):
   device = "cuda" if torch.cuda.is_available() else "cpu"
 
   # Attach hook to apply RPI intervention
@@ -33,7 +33,10 @@ def predict(model, dataloader, source, RPI= False, magnitude = 1.0, half = True)
   acc_list = [] # List of accuracies
 
   model.eval()
-  if half:
+  # Half precision is only used on CUDA. On CPU/MPS fp16 forward is unsupported or
+  # very slow, so keep float32 there. The Data class gates input casting the same
+  # way, so model and inputs always share a dtype.
+  if half and torch.cuda.is_available():
     model = model.half()
     
   with torch.inference_mode():
@@ -46,10 +49,11 @@ def predict(model, dataloader, source, RPI= False, magnitude = 1.0, half = True)
         logits = model(images)
       
       predicted_class_idx = logits.argmax(-1).to(device)
-      accuracy = (predicted_class_idx ==  torch.tensor(labels).to(device)).sum() / len(labels)
+      accuracy = (predicted_class_idx == torch.as_tensor(labels).to(device)).sum() / len(labels)
       accuracy = accuracy.detach().cpu().item()
       acc_list.append(accuracy)
-      print(accuracy)
+      if verbose:
+        print(accuracy)
   
   #Resetting the model's PEs to their original magnitude
   try:

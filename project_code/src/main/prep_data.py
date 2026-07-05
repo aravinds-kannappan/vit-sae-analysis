@@ -85,7 +85,9 @@ class Data(IterableDataset):
 
     self.global_count = multiprocessing.Value('i', 0)
 
-    self.half = half
+    # Only cast inputs to half on CUDA, matching predict(), so model and inputs
+    # never disagree on dtype (fp16 on CPU/MPS is unsupported or very slow).
+    self.half = bool(half) and torch.cuda.is_available()
 
   def __iter__(self):
       worker_info = get_worker_info()
@@ -117,29 +119,32 @@ class Data(IterableDataset):
 
           if self.source == "transformers":
               image = self.processor(images=img, return_tensors="pt")
-              image['pixel_values'] = image['pixel_values'].squeeze(0)
+              pixel_values = image['pixel_values'].squeeze(0)
+              # Cast the tensor, not the BatchFeature (BatchFeature has no .half()).
+              # The BatchFeature is kept so collate rebuilds it and predict can do
+              # image.to(device) then model(**image).
+              image['pixel_values'] = pixel_values.half() if self.half else pixel_values
 
           elif self.source == "timm":
               image = self.processor(img)
+              if self.half:
+                  image = image.half()
 
           else:
               raise ValueError(f"Unknown source: {self.source!r}, expected 'transformers' or 'timm'")
 
           label = item['label']
-        
-          if self.half:
-            yield image.half(), label
-          else:
-            yield image, label
+          yield image, label
 
 
-def prep_data(dataset, processor, source, corruption_type=None, severity=5, number_images=None, batch_size=1000, half = True):
+def prep_data(dataset, processor, source, corruption_type=None, severity=5, number_images=None, batch_size=1000, half=True, num_workers=None):
 
     data = Data(dataset, processor, source, corruption_type, severity, number_images, half)
 
-    # Some streaming mirrors do not expose n_shards; default to 1 in that case.
-    n_shards = getattr(dataset, "n_shards", 1) or 1
-    num_workers = min(n_shards, os.cpu_count())
+    if num_workers is None:
+        # Some streaming mirrors do not expose n_shards; default to 1 in that case.
+        n_shards = getattr(dataset, "n_shards", 1) or 1
+        num_workers = min(n_shards, os.cpu_count())
 
     DL = DataLoader(
         data,
@@ -147,7 +152,7 @@ def prep_data(dataset, processor, source, corruption_type=None, severity=5, numb
         # shuffle is not supported for IterableDataset. If you want
         # shuffling, do it upstream: hf_dataset.shuffle(buffer_size=...)
         # before passing it in here.
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         num_workers=num_workers,
     )
 

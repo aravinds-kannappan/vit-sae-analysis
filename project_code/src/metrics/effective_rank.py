@@ -86,6 +86,8 @@ def evaluate_effective_rank(
     number_images=1000,
     batch_size=256,
     center=False,
+    half=True,
+    num_workers=None,
 ):
     """Per layer effective rank over a streamed image sample.
 
@@ -97,13 +99,14 @@ def evaluate_effective_rank(
         raise ValueError("source must be 'timm' or 'transformers'")
 
     dataloader = prep_data(
-        dataset, processor, source, number_images=number_images, batch_size=batch_size
+        dataset, processor, source, number_images=number_images,
+        batch_size=batch_size, half=half, num_workers=num_workers,
     )
 
     store = {"sum": {}, "count": {}}
     handles = _register_block_hooks(model, source, store, center)
     try:
-        predict(model, dataloader, source, RPI, magnitude)
+        predict(model, dataloader, source, RPI, magnitude, half=half)
     finally:
         for handle in handles:
             handle.remove()
