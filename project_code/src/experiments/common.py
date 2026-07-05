@@ -67,25 +67,40 @@ def load_imagenet(
             ds = ds.shuffle(seed=seed, buffer_size=buffer_size)
         return ds
 
+    def _probe(ds):
+        # Force one real read. With streaming, load_dataset only fetches metadata
+        # and the first file download (where a gated or fine-grained-token 403
+        # actually happens) is deferred to iteration, otherwise deep inside a
+        # DataLoader worker. Probing here surfaces the error where we can fall back.
+        next(iter(ds))
+
+    def _looks_gated(exc):
+        msg = str(exc).lower()
+        keys = ("gated", "not found", "403", "forbidden", "access", "permission", "token")
+        return any(k in msg for k in keys)
+
     try:
         ds = _load(dataset_id)
+        _probe(ds)
         print(f"loaded {dataset_id} [{split}]")
         return ds
-    except Exception as exc:  # gated / access / not found
-        msg = str(exc).lower()
-        gated = ("gated" in msg) or ("not found" in msg) or ("403" in msg) or ("access" in msg)
-        if not (gated and fallback_id):
+    except Exception as exc:
+        if not (fallback_id and _looks_gated(exc)):
             raise
         print(
-            f"Could not access '{dataset_id}' (it is gated for your account).\n"
-            f"To use the official split, open\n"
-            f"    https://huggingface.co/datasets/{dataset_id}\n"
-            f"while logged in as the SAME account as your token, click "
-            f"'Agree and access repository' (access is instant), then rerun.\n"
+            f"Could not read '{dataset_id}' with your token ({type(exc).__name__}).\n"
+            f"To use the official split, do both of these:\n"
+            f"  1. Accept the terms once at https://huggingface.co/datasets/{dataset_id}\n"
+            f"     (click 'Agree and access repository').\n"
+            f"  2. Use a token that can read gated repos: either a classic 'Read'\n"
+            f"     token, or a fine-grained token with 'Read access to contents of\n"
+            f"     all public gated repos you can access' enabled, at\n"
+            f"     https://huggingface.co/settings/tokens\n"
             f"Falling back to the ungated mirror '{fallback_id}' for now "
-            f"(same schema and label ordering)."
+            f"(same schema and label ordering, so every experiment still works)."
         )
         ds = _load(fallback_id)
+        _probe(ds)
         print(f"loaded {fallback_id} [{split}]")
         return ds
 
