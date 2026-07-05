@@ -140,12 +140,52 @@ class _ViT(nn.Module):
 
 
 class FakeHF(nn.Module):
+    """Older transformers layout: vit.encoder.layer with a ViTOutput residual add."""
+
     def __init__(self, C, L):
         super().__init__()
         self.vit = _ViT(C, L)
 
     def forward(self, x):
         for lyr in self.vit.encoder.layer:
+            x = lyr(x)[0]
+        return x
+
+
+class HFNewLayer(nn.Module):
+    """Newer transformers ViTLayer: standalone self.mlp added after layernorm_after."""
+
+    def __init__(self, C):
+        super().__init__()
+        self.layernorm_before = nn.LayerNorm(C)
+        self.attention = HFAttention(C)  # returns a tuple
+        self.layernorm_after = nn.LayerNorm(C)
+        self.mlp = nn.Sequential(nn.Linear(C, C), nn.GELU(), nn.Linear(C, C))
+        self.dropout = nn.Dropout(0.0)
+
+    def forward(self, hidden_states, head_mask=None, output_attentions=False):
+        attn = self.attention(self.layernorm_before(hidden_states))[0]
+        hidden_states = attn + hidden_states
+        residual = hidden_states
+        h = self.dropout(self.mlp(self.layernorm_after(hidden_states)))
+        return (h + residual,)
+
+
+class _ViTNew(nn.Module):
+    def __init__(self, C, L):
+        super().__init__()
+        self.layers = nn.ModuleList([HFNewLayer(C) for _ in range(L)])
+
+
+class FakeHFNew(nn.Module):
+    """Newer transformers layout: vit.layers, no encoder, standalone block.mlp."""
+
+    def __init__(self, C, L):
+        super().__init__()
+        self.vit = _ViTNew(C, L)
+
+    def forward(self, x):
+        for lyr in self.vit.layers:
             x = lyr(x)[0]
         return x
 
@@ -185,6 +225,35 @@ def test_ablation_all_makes_identity_hf():
                 out = model(x)
     assert torch.allclose(out, x, atol=1e-6), (out - x).abs().max().item()
     print("ok  test_ablation_all_makes_identity_hf")
+
+
+def test_ablation_all_makes_identity_hf_new():
+    # This is the newer transformers ViT layout (vit.layers, standalone block.mlp)
+    # that broke the old hardcoded vit.encoder.layer path.
+    torch.manual_seed(0)
+    model = FakeHFNew(8, 3).eval()
+    x = torch.randn(2, 5, 8)
+    with torch.no_grad():
+        assert num_blocks(model, "transformers") == 3
+        with AblationController(model, "transformers", "attn", list(range(3))):
+            with AblationController(model, "transformers", "mlp", list(range(3))):
+                out = model(x)
+    assert torch.allclose(out, x, atol=1e-6), (out - x).abs().max().item()
+    print("ok  test_ablation_all_makes_identity_hf_new")
+
+
+def test_block_topology_helpers_both_layouts():
+    from main.load_models import get_vit_blocks, get_block_attention, get_block_mlp
+
+    old = FakeHF(8, 3)
+    new = FakeHFNew(8, 3)
+    assert len(get_vit_blocks(old, "transformers")) == 3
+    assert len(get_vit_blocks(new, "transformers")) == 3
+    # Old layout: MLP add lives in ViTOutput -> "residual" mode.
+    assert get_block_mlp(old.vit.encoder.layer[0], "transformers")[1] == "residual"
+    # New layout: standalone mlp -> "zero" mode.
+    assert get_block_mlp(new.vit.layers[0], "transformers")[1] == "zero"
+    print("ok  test_block_topology_helpers_both_layouts")
 
 
 def test_ablation_only_target_layer_changes():

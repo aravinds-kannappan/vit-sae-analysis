@@ -30,35 +30,22 @@ is fully reversible and restores the model on exit.
 """
 
 from contextlib import contextmanager
+import os
+import sys
 
 import torch
+
+# Topology helpers live in main.load_models so a single place knows how to find
+# blocks and submodules across library versions (older transformers use
+# vit.encoder.layer with a ViTOutput residual add, newer ones use vit.layers with
+# a standalone block.mlp, timm uses model.blocks).
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + "/.."))
+from main.load_models import get_vit_blocks, get_block_attention, get_block_mlp
 
 
 def num_blocks(model, source):
     """Number of transformer blocks in the model."""
-    if source == "transformers":
-        return len(model.vit.encoder.layer)
-    if source == "timm":
-        return len(model.blocks)
-    raise ValueError(f"source must be 'transformers' or 'timm', got {source!r}")
-
-
-def _iter_blocks(model, source):
-    """Yield (index, attn_module, mlp_module) for each transformer block.
-
-    For timm the MLP is a standalone `block.mlp` whose output is added to the
-    residual, so ablating it means returning zeros. For transformers the MLP
-    residual add lives inside `block.output` (ViTOutput), so ablating the MLP
-    means returning that module's residual input untouched (see the hooks below).
-    """
-    if source == "transformers":
-        for i, blk in enumerate(model.vit.encoder.layer):
-            yield i, blk.attention, blk.output
-    elif source == "timm":
-        for i, blk in enumerate(model.blocks):
-            yield i, blk.attn, blk.mlp
-    else:
-        raise ValueError(f"source must be 'transformers' or 'timm', got {source!r}")
+    return len(get_vit_blocks(model, source))
 
 
 def resolve_layers(layers, n_layers, mode):
@@ -90,27 +77,24 @@ def _attn_ablation_hook(module, inputs, output):
     return torch.zeros_like(output)
 
 
-def _timm_mlp_ablation_hook(module, inputs, output):
-    """Zero the timm MLP sublayer output so the residual add contributes nothing."""
+def _zero_output_hook(module, inputs, output):
+    """Zero a sublayer output whose result is added to the residual outside the
+    module (timm MLP, and the standalone MLP in newer transformers)."""
     return torch.zeros_like(output)
 
 
-def _hf_mlp_ablation_hook(module, inputs, output):
-    """Remove the transformers MLP contribution.
+def _residual_mlp_hook(module, inputs, output):
+    """Remove an older transformers MLP whose module adds the residual internally.
 
-    ViTOutput.forward(hidden_states, input_tensor) returns
-    dense(hidden_states) + input_tensor. Returning input_tensor alone keeps the
-    residual and drops the feedforward update.
+    ViTOutput.forward(hidden_states, input_tensor) returns dense(hidden_states) +
+    input_tensor. Returning input_tensor alone keeps the residual and drops the
+    feedforward update.
     """
     if len(inputs) >= 2 and torch.is_tensor(inputs[1]):
         return inputs[1]
-    # Defensive fallback: if the signature is not what we expect, subtract the
-    # feedforward part by returning the output minus the pre residual dense path
-    # is not recoverable here, so leave the output unchanged and warn once.
     raise RuntimeError(
-        "Unexpected ViTOutput signature; cannot ablate MLP. Check the "
-        "transformers version, ViTOutput.forward(hidden_states, input_tensor) "
-        "is expected."
+        "Unexpected MLP output signature; cannot ablate MLP in 'residual' mode. "
+        "Expected ViTOutput.forward(hidden_states, input_tensor)."
     )
 
 
@@ -144,15 +128,17 @@ class AblationController:
         self.handles = []
 
     def __enter__(self):
-        for i, attn_mod, mlp_mod in _iter_blocks(self.model, self.source):
+        blocks = get_vit_blocks(self.model, self.source)
+        for i, blk in enumerate(blocks):
             if i not in self.ablated_layers:
                 continue
             if self.component == "attn":
-                handle = attn_mod.register_forward_hook(_attn_ablation_hook)
-            elif self.source == "transformers":
-                handle = mlp_mod.register_forward_hook(_hf_mlp_ablation_hook)
-            else:
-                handle = mlp_mod.register_forward_hook(_timm_mlp_ablation_hook)
+                target = get_block_attention(blk, self.source)
+                handle = target.register_forward_hook(_attn_ablation_hook)
+            else:  # mlp
+                mlp_mod, mode = get_block_mlp(blk, self.source)
+                hook = _zero_output_hook if mode == "zero" else _residual_mlp_hook
+                handle = mlp_mod.register_forward_hook(hook)
             self.handles.append(handle)
         return self
 

@@ -12,6 +12,7 @@ the two position encoding schemes on an equal footing.
 """
 
 import torch
+import torch.nn as nn
 
 
 def get_device():
@@ -62,3 +63,91 @@ def num_prefix_tokens(model, source):
     if source == "transformers":
         return 1
     return int(getattr(model, "num_prefix_tokens", 1))
+
+
+# --------------------------------------------------------------------------- #
+# Model topology helpers.
+#
+# These locate the transformer blocks and their attention and MLP submodules in
+# a way that survives library version differences. In particular the transformers
+# ViT was refactored: older versions expose the blocks at `vit.encoder.layer`
+# with the MLP residual add hidden inside a `ViTOutput` submodule, while newer
+# versions expose them at `vit.layers` with a standalone `block.mlp` whose output
+# is added to the residual. timm keeps `model.blocks` with `block.attn` and
+# `block.mlp`. Everything downstream (SSDC capture, effective rank, ablation) goes
+# through these helpers so there is a single place to adapt.
+# --------------------------------------------------------------------------- #
+
+
+def get_vit_blocks(model, source):
+    """Return the ModuleList of transformer blocks."""
+    if source == "timm":
+        return model.blocks
+    if source != "transformers":
+        raise ValueError(f"source must be 'transformers' or 'timm', got {source!r}")
+
+    base = getattr(model, "vit", model)
+    encoder = getattr(base, "encoder", None)
+    if encoder is not None and hasattr(encoder, "layer"):
+        return encoder.layer  # older transformers: vit.encoder.layer
+    if hasattr(base, "layers"):
+        return base.layers  # newer transformers: vit.layers
+
+    # Generic fallback: the longest ModuleList whose items look like ViT layers.
+    best = None
+    for module in model.modules():
+        if isinstance(module, nn.ModuleList) and len(module) and "Layer" in type(module[0]).__name__:
+            if best is None or len(module) > len(best):
+                best = module
+    if best is not None:
+        return best
+    raise AttributeError("could not locate the transformer blocks on this model")
+
+
+def get_block_attention(block, source):
+    """Return the attention submodule of one block."""
+    if source == "timm":
+        return block.attn
+    return block.attention  # transformers, both old and new layouts
+
+
+def get_patch_embed_conv(model, source):
+    """Return the Conv2d that projects image patches into tokens.
+
+    Its output has shape [B, C, H, W] before the flatten into a token sequence,
+    which is where the RPI permutation acts. Robust to the transformers and timm
+    attribute names, with a first Conv2d fallback.
+    """
+    if source == "timm":
+        patch = getattr(model, "patch_embed", None)
+        if patch is not None and hasattr(patch, "proj"):
+            return patch.proj
+    else:
+        base = getattr(model, "vit", model)
+        emb = getattr(base, "embeddings", None)
+        patch = getattr(emb, "patch_embeddings", None) if emb is not None else None
+        if patch is not None and hasattr(patch, "projection"):
+            return patch.projection
+
+    for module in model.modules():
+        if isinstance(module, nn.Conv2d):
+            return module
+    raise AttributeError("could not locate the patch embedding convolution")
+
+
+def get_block_mlp(block, source):
+    """Return (module, mode) describing how to ablate the MLP of one block.
+
+    mode "zero"     : the module output is added to the residual, so ablating it
+                      means returning zeros (timm, and newer transformers).
+    mode "residual" : the module performs the residual add internally (older
+                      transformers ViTOutput), so ablating it means returning its
+                      residual input.
+    """
+    if source == "timm":
+        return block.mlp, "zero"
+    if hasattr(block, "mlp"):  # newer transformers: standalone MLP added after
+        return block.mlp, "zero"
+    if hasattr(block, "output"):  # older transformers: ViTOutput adds internally
+        return block.output, "residual"
+    raise AttributeError("could not locate the MLP submodule on this block")

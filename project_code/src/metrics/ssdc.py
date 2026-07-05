@@ -31,6 +31,7 @@ import torch
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + "/.."))
 from main.prep_data import prep_data
 from main.model import predict
+from main.load_models import get_vit_blocks, get_block_attention
 
 
 def spatial_similarity_distance_correlation(S, grid_size, metric="manhattan"):
@@ -92,18 +93,15 @@ def _make_accumulating_hook(store, layer_idx):
 
 
 def _register_block_hooks(model, source, store):
-    """Hook every block's attention submodule input and return the handles."""
+    """Hook every block's attention submodule input and return the handles.
+
+    The input to the attention submodule is the post norm residual entering the
+    block, the same quantity for both models and both transformers layouts.
+    """
     handles = []
-    if source == "transformers":
-        blocks = model.vit.encoder.layer
-        for i, blk in enumerate(blocks):
-            handles.append(blk.attention.register_forward_hook(_make_accumulating_hook(store, i)))
-    elif source == "timm":
-        blocks = model.blocks
-        for i, blk in enumerate(blocks):
-            handles.append(blk.attn.register_forward_hook(_make_accumulating_hook(store, i)))
-    else:
-        raise ValueError("source must be 'timm' or 'transformers'")
+    for i, blk in enumerate(get_vit_blocks(model, source)):
+        attn = get_block_attention(blk, source)
+        handles.append(attn.register_forward_hook(_make_accumulating_hook(store, i)))
     return handles
 
 

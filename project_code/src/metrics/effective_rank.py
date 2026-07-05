@@ -24,6 +24,7 @@ import torch
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + "/.."))
 from main.prep_data import prep_data
 from main.model import predict
+from main.load_models import get_vit_blocks, get_block_attention
 
 
 def batched_effective_rank(tok, center=False, eps=1e-12):
@@ -69,14 +70,9 @@ def _make_rank_hook(store, layer_idx, center):
 
 def _register_block_hooks(model, source, store, center):
     handles = []
-    if source == "transformers":
-        for i, blk in enumerate(model.vit.encoder.layer):
-            handles.append(blk.attention.register_forward_hook(_make_rank_hook(store, i, center)))
-    elif source == "timm":
-        for i, blk in enumerate(model.blocks):
-            handles.append(blk.attn.register_forward_hook(_make_rank_hook(store, i, center)))
-    else:
-        raise ValueError("source must be 'timm' or 'transformers'")
+    for i, blk in enumerate(get_vit_blocks(model, source)):
+        attn = get_block_attention(blk, source)
+        handles.append(attn.register_forward_hook(_make_rank_hook(store, i, center)))
     return handles
 
 

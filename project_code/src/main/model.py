@@ -13,10 +13,13 @@ def predict(model, dataloader, source, RPI= False, magnitude = 1.0, half = True)
       perm = torch.randperm(out.shape[-1])
       return out[:,:,perm].view(B,C,H,W)
 
-    if source == "transformers":
-      handle = model.vit.embeddings.patch_embeddings.projection.register_forward_hook(RPI_hook)
-    elif source == "timm":
-      handle = model.patch_embed.proj.register_forward_hook(RPI_hook)
+    # Locate the patch embedding conv robustly (attribute names differ across
+    # transformers versions and between transformers and timm).
+    import os, sys
+    sys.path.append(os.path.abspath(os.path.dirname(__file__) + "/.."))
+    from main.load_models import get_patch_embed_conv
+
+    handle = get_patch_embed_conv(model, source).register_forward_hook(RPI_hook)
 
   # Scale positional encodings (for the PE magnitude scaling experiment)
   if source == "transformers":
