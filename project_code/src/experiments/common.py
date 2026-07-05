@@ -37,18 +37,57 @@ def get_hf_token(token=None):
     )
 
 
-def load_imagenet(split="validation", streaming=True, token=None, shuffle=False, seed=0, buffer_size=2000):
-    """Stream ImageNet-1k from the Hub. The split is gated, so a token is needed.
+def load_imagenet(
+    split="validation",
+    streaming=True,
+    token=None,
+    shuffle=False,
+    seed=0,
+    buffer_size=2000,
+    dataset_id="ILSVRC/imagenet-1k",
+    fallback_id="benjamin-paine/imagenet-1k-256x256",
+):
+    """Stream ImageNet-1k from the Hub, yielding {'image': PIL, 'label': int}.
 
-    Returns a (streaming) HuggingFace dataset yielding {'image': PIL, 'label': int}.
+    The official split (`ILSVRC/imagenet-1k`) is gated. If your account has not
+    accepted its terms, the load returns a 403 gated error. In that case this
+    helper prints how to unlock the official split and falls back to an ungated
+    repack (`benjamin-paine/imagenet-1k-256x256`) that carries the same image and
+    label schema with the standard 0 to 999 label ordering, so every experiment,
+    including fragility, still works. Pass fallback_id=None to disable the
+    fallback and see the raw error.
     """
     from datasets import load_dataset
 
     token = get_hf_token(token)
-    ds = load_dataset("ILSVRC/imagenet-1k", split=split, streaming=streaming, token=token)
-    if shuffle:
-        ds = ds.shuffle(seed=seed, buffer_size=buffer_size)
-    return ds
+
+    def _load(ds_id):
+        ds = load_dataset(ds_id, split=split, streaming=streaming, token=token)
+        if shuffle:
+            ds = ds.shuffle(seed=seed, buffer_size=buffer_size)
+        return ds
+
+    try:
+        ds = _load(dataset_id)
+        print(f"loaded {dataset_id} [{split}]")
+        return ds
+    except Exception as exc:  # gated / access / not found
+        msg = str(exc).lower()
+        gated = ("gated" in msg) or ("not found" in msg) or ("403" in msg) or ("access" in msg)
+        if not (gated and fallback_id):
+            raise
+        print(
+            f"Could not access '{dataset_id}' (it is gated for your account).\n"
+            f"To use the official split, open\n"
+            f"    https://huggingface.co/datasets/{dataset_id}\n"
+            f"while logged in as the SAME account as your token, click "
+            f"'Agree and access repository' (access is instant), then rerun.\n"
+            f"Falling back to the ungated mirror '{fallback_id}' for now "
+            f"(same schema and label ordering)."
+        )
+        ds = _load(fallback_id)
+        print(f"loaded {fallback_id} [{split}]")
+        return ds
 
 
 def save_json(obj, path):

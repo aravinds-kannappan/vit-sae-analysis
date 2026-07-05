@@ -137,7 +137,9 @@ def prep_data(dataset, processor, source, corruption_type=None, severity=5, numb
 
     data = Data(dataset, processor, source, corruption_type, severity, number_images, half)
 
-    num_workers = min(dataset.n_shards, os.cpu_count())
+    # Some streaming mirrors do not expose n_shards; default to 1 in that case.
+    n_shards = getattr(dataset, "n_shards", 1) or 1
+    num_workers = min(n_shards, os.cpu_count())
 
     DL = DataLoader(
         data,
